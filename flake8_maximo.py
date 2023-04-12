@@ -11,7 +11,6 @@ else:
 import importlib.metadata
 
 
-
 MAX100 = "MAX100 count() called on mboSet: {set_name} more than once"
 MAX101 = "MAX101 count() called on mboSet: {set_name} within a loop"
 
@@ -22,7 +21,7 @@ class MboVisitor(ast.NodeVisitor):
         self.mbo_count_calls: Dict[int] = defaultdict(int)
         self.problems: List[Tuple[int, int, str]] = []
 
-    def visit_Assign(self, node: ast.Assign)-> None:
+    def visit_Assign(self, node: ast.Assign) -> None:
         if isinstance(node.value, ast.Call) and node.value.func.attr == "getMboSet":
             self.mbo_sets[node.targets[0].id] = node.value.args[0].value
         self.generic_visit(node)
@@ -31,10 +30,16 @@ class MboVisitor(ast.NodeVisitor):
         if not hasattr(node.func, "value"):
             self.generic_visit(node)
             return
-        if self.is_mbo_count_call(node): 
-            self.mbo_count_calls[node.func.value.id] += 1 
+        if self.is_mbo_count_call(node):
+            self.mbo_count_calls[node.func.value.id] += 1
             if self.mbo_count_calls[node.func.value.id] > 1:
-                self.problems.append((node.lineno, node.col_offset, MAX100.format(set_name=node.func.value.id)))
+                self.problems.append(
+                    (
+                        node.lineno,
+                        node.col_offset,
+                        MAX100.format(set_name=node.func.value.id),
+                    )
+                )
         self.generic_visit(node)
 
     def visit_For(self, node: ast.For) -> None:
@@ -44,15 +49,25 @@ class MboVisitor(ast.NodeVisitor):
     def visit_While(self, node: ast.While) -> None:
         self.visit_loop_body(node)
         self.generic_visit(node)
-    
-    def visit_loop_body(self, body: Union[ast.For, ast.While]) -> None:    
+
+    def visit_loop_body(self, body: Union[ast.For, ast.While]) -> None:
         for node in ast.walk(body):
             if isinstance(node, ast.Call):
-                if self.is_mbo_count_call(node): #self.visit_Call(node):
-                    self.problems.append((node.lineno, node.col_offset, MAX101.format(set_name=node.func.value.id)))
+                if self.is_mbo_count_call(node):  # self.visit_Call(node):
+                    self.problems.append(
+                        (
+                            node.lineno,
+                            node.col_offset,
+                            MAX101.format(set_name=node.func.value.id),
+                        )
+                    )
 
     def is_mbo_count_call(self, node):
-        return hasattr(node.func, "value") and node.func.attr == 'count' and node.func.value.id in self.mbo_sets.keys()
+        return (
+            hasattr(node.func, "value")
+            and node.func.attr == "count"
+            and node.func.value.id in self.mbo_sets.keys()
+        )
 
 
 class Plugin:
@@ -67,4 +82,3 @@ class Plugin:
         mbo_visitor.visit(self._tree)
         for line, col, msg in mbo_visitor.problems:
             yield line, col, msg, type(self)
-
