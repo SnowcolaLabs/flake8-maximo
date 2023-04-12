@@ -13,6 +13,8 @@ import importlib.metadata
 
 
 MAX100 = "MAX100 count() called on mboSet: {set_name} more than once"
+MAX101 = "MAX101 count() called on mboSet: {set_name} within a loop"
+
 
 class MboVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
@@ -43,6 +45,11 @@ class MboVisitor(ast.NodeVisitor):
         self.visit_loop_body(node)
         self.generic_visit(node)
     
+    def visit_loop_body(self, body: Union[ast.For, ast.While]) -> None:    
+        for node in ast.walk(body):
+            if isinstance(node, ast.Call):
+                if self.is_mbo_count_call(node): #self.visit_Call(node):
+                    self.problems.append((node.lineno, node.col_offset, MAX101.format(set_name=node.func.value.id)))
 
     def is_mbo_count_call(self, node):
         return hasattr(node.func, "value") and node.func.attr == 'count' and node.func.value.id in self.mbo_sets.keys()
