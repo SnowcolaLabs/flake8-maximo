@@ -22,10 +22,19 @@ if testSet.count() >3:
     ret = _results(test_code)
     assert ret == {'5:4 MAX100 count() called on mboSet: testSet more than once'}
 
-def test_mbo_set_count_in_loop():
+def test_mbo_set_count_in_for_loop():
     test_code = """
 testSet = mbo.getMboSet('TESTSET')
 for x in range(5):
+    testSet.count()
+    """
+    ret = _results(test_code)
+    assert ret == {'4:5 MAX101 count() called on mboSet: testSet within a loop'}
+
+def test_mbo_set_count_in_while_loop():
+    test_code = """
+testSet = mbo.getMboSet('TESTSET')
+while True:
     testSet.count()
     """
     ret = _results(test_code)
