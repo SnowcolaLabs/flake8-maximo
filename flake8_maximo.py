@@ -15,12 +15,13 @@ class MboVisitor(ast.NodeVisitor):
         self.problems = []
 
     def visit_Assign(self, node):
-        if isinstance(node.value, ast.Call) and node.value.func.attr == "getMboSet":
+        if isinstance(node.value, ast.Call) and not isinstance(node.value.func, ast.Name) and node.value.func.attr == "getMboSet":
             self.mbo_sets[node.targets[0].id] = node.value.args[0]
         self.generic_visit(node)
 
     def visit_Call(self, node):
         self.check_MAX100(node)
+        self.check_MAX102(node)
         self.generic_visit(node)
 
     def visit_For(self, node):
@@ -30,18 +31,6 @@ class MboVisitor(ast.NodeVisitor):
     def visit_While(self, node):
         self.check_MAX101(node)
         self.generic_visit(node)
-
-    def check_MAX101(self, body):
-        for node in ast.walk(body):
-            if isinstance(node, ast.Call):
-                if self.is_mbo_count_call(node):  # self.visit_Call(node):
-                    self.problems.append(
-                        (
-                            node.lineno,
-                            node.col_offset,
-                            MAX101.format(set_name=node.func.value.id),
-                        )
-                    )
 
     def check_MAX100(self, node):
         if not hasattr(node.func, "value"):
@@ -56,6 +45,29 @@ class MboVisitor(ast.NodeVisitor):
                         MAX100.format(set_name=node.func.value.id),
                     )
                 )
+
+    def check_MAX101(self, body):
+        for node in ast.walk(body):
+            if isinstance(node, ast.Call):
+                if self.is_mbo_count_call(node):  # self.visit_Call(node):
+                    self.problems.append(
+                        (
+                            node.lineno,
+                            node.col_offset,
+                            MAX101.format(set_name=node.func.value.id),
+                        )
+                    )
+
+    def check_MAX102(self, node):
+        if not hasattr(node.func, "value"):
+            return
+        if not hasattr(node.func.value, "id"):
+            return
+        if isinstance(node.func.value.id, str) and 'mbo' in node.func.value.id.lower():
+            for arg in node.args:
+                if isinstance(arg, ast.Num):
+                    if type(arg.n) == long:
+                        self.problems.append((node.lineno, node.col_offset, MAX102.format(literal="{}L".format(arg.n))))
 
     def is_mbo_count_call(self, node):
         return (
@@ -74,6 +86,7 @@ class Plugin:
 
     def run(self):
         mbo_visitor = MboVisitor()
+
         mbo_visitor.visit(self._tree)
         for line, col, msg in mbo_visitor.problems:
             yield line, col, msg, type(self)

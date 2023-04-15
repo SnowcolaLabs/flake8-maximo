@@ -39,3 +39,8 @@ while True:
     """
     ret = _results(test_code)
     assert ret == {'4:5 MAX101 count() called on mboSet: testSet within a loop'}
+
+def test_literals_instead_of_mboConsts():
+    test_code = 'mbo.setValue("ATGISFEATUREID",mbo.getString("ATANCESTORGISFEATUREID.GISFEATUREID"),2L)'
+    ret = _results(test_code)
+    assert ret == {'1:1 MAX102 Literal: 2L used instead of MboConstant'}
