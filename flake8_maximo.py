@@ -1,34 +1,39 @@
-import sys
 import ast
-from typing import Any, Generator, Tuple, Type, List, Union
 from collections import defaultdict
-
-if sys.version_info < (3, 8):
-    import importlib_metadata
-else:
-    import importlib.metadata as importlib_metadata
-
-import importlib.metadata
+import importlib_metadata
 
 
 MAX100 = "MAX100 count() called on mboSet: {set_name} more than once"
 MAX101 = "MAX101 count() called on mboSet: {set_name} within a loop"
+MAX102 = "MAX102 Literal: {literal} used instead of MboConstant"
 
 
 class MboVisitor(ast.NodeVisitor):
-    def __init__(self) -> None:
-        self.mbo_sets: Dict[str] = {}
-        self.mbo_count_calls: Dict[int] = defaultdict(int)
-        self.problems: List[Tuple[int, int, str]] = []
+    def __init__(self):
+        self.mbo_sets = {}
+        self.mbo_count_calls = defaultdict(int)
+        self.problems = []
 
-    def visit_Assign(self, node: ast.Assign) -> None:
-        if isinstance(node.value, ast.Call) and node.value.func.attr == "getMboSet":
-            self.mbo_sets[node.targets[0].id] = node.value.args[0].value
+    def visit_Assign(self, node):
+        if isinstance(node.value, ast.Call) and not isinstance(node.value.func, ast.Name) and node.value.func.attr == "getMboSet":
+            self.mbo_sets[node.targets[0].id] = node.value.args[0]
         self.generic_visit(node)
 
-    def visit_Call(self, node: ast.Call) -> bool:
+    def visit_Call(self, node):
+        self.check_MAX100(node)
+        self.check_MAX102(node)
+        self.generic_visit(node)
+
+    def visit_For(self, node):
+        self.check_MAX101(node)
+        self.generic_visit(node)
+
+    def visit_While(self, node):
+        self.check_MAX101(node)
+        self.generic_visit(node)
+
+    def check_MAX100(self, node):
         if not hasattr(node.func, "value"):
-            self.generic_visit(node)
             return
         if self.is_mbo_count_call(node):
             self.mbo_count_calls[node.func.value.id] += 1
@@ -40,17 +45,8 @@ class MboVisitor(ast.NodeVisitor):
                         MAX100.format(set_name=node.func.value.id),
                     )
                 )
-        self.generic_visit(node)
 
-    def visit_For(self, node: ast.For) -> None:
-        self.visit_loop_body(node)
-        self.generic_visit(node)
-
-    def visit_While(self, node: ast.While) -> None:
-        self.visit_loop_body(node)
-        self.generic_visit(node)
-
-    def visit_loop_body(self, body: Union[ast.For, ast.While]) -> None:
+    def check_MAX101(self, body):
         for node in ast.walk(body):
             if isinstance(node, ast.Call):
                 if self.is_mbo_count_call(node):  # self.visit_Call(node):
@@ -61,6 +57,17 @@ class MboVisitor(ast.NodeVisitor):
                             MAX101.format(set_name=node.func.value.id),
                         )
                     )
+
+    def check_MAX102(self, node):
+        if not hasattr(node.func, "value"):
+            return
+        if not hasattr(node.func.value, "id"):
+            return
+        if isinstance(node.func.value.id, str) and 'mbo' in node.func.value.id.lower():
+            for arg in node.args:
+                if isinstance(arg, ast.Num):
+                    if type(arg.n) == long:
+                        self.problems.append((node.lineno, node.col_offset, MAX102.format(literal="{}L".format(arg.n))))
 
     def is_mbo_count_call(self, node):
         return (
@@ -74,11 +81,12 @@ class Plugin:
     name = __name__
     version = importlib_metadata.version(__name__)
 
-    def __init__(self, tree: ast.AST) -> None:
+    def __init__(self, tree):
         self._tree = tree
 
-    def run(self) -> Generator[Tuple[int, int, str, Type[Any]], None, None]:
+    def run(self):
         mbo_visitor = MboVisitor()
+
         mbo_visitor.visit(self._tree)
         for line, col, msg in mbo_visitor.problems:
             yield line, col, msg, type(self)

@@ -3,10 +3,10 @@ from typing import Set
 
 from flake8_maximo import Plugin
 
-def _results(s: str) -> Set[str]:
+def _results(s):
     tree = ast.parse(s)
     plugin = Plugin(tree)
-    return {f"{line}:{col + 1} {msg}" for line, col, msg, _ in plugin.run()}
+    return {"{line}:{col} {msg}".format(line=line, col=col+1, msg=msg) for line, col, msg, _ in plugin.run()}
 
 def test_trivial():
     assert _results("""""") == set()
@@ -39,3 +39,8 @@ while True:
     """
     ret = _results(test_code)
     assert ret == {'4:5 MAX101 count() called on mboSet: testSet within a loop'}
+
+def test_literals_instead_of_mboConsts():
+    test_code = 'mbo.setValue("ATGISFEATUREID",mbo.getString("ATANCESTORGISFEATUREID.GISFEATUREID"),2L)'
+    ret = _results(test_code)
+    assert ret == {'1:1 MAX102 Literal: 2L used instead of MboConstant'}
