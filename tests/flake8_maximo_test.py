@@ -3,10 +3,10 @@ from typing import Set
 
 from flake8_maximo import Plugin
 
-def _results(s: str) -> Set[str]:
+def _results(s):
     tree = ast.parse(s)
     plugin = Plugin(tree)
-    return {f"{line}:{col + 1} {msg}" for line, col, msg, _ in plugin.run()}
+    return {"{line}:{col} {msg}".format(line=line, col=col+1, msg=msg) for line, col, msg, _ in plugin.run()}
 
 def test_trivial():
     assert _results("""""") == set()

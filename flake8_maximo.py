@@ -8,14 +8,14 @@ MAX101 = "MAX101 count() called on mboSet: {set_name} within a loop"
 
 
 class MboVisitor(ast.NodeVisitor):
-    def __init__(self) -> None:
+    def __init__(self):
         self.mbo_sets = {}
         self.mbo_count_calls = defaultdict(int)
         self.problems = []
 
     def visit_Assign(self, node):
         if isinstance(node.value, ast.Call) and node.value.func.attr == "getMboSet":
-            self.mbo_sets[node.targets[0].id] = node.value.args[0].value
+            self.mbo_sets[node.targets[0].id] = node.value.args[0]
         self.generic_visit(node)
 
     def visit_Call(self, node):
