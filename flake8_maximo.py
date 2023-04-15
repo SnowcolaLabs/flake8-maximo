@@ -5,6 +5,7 @@ import importlib_metadata
 
 MAX100 = "MAX100 count() called on mboSet: {set_name} more than once"
 MAX101 = "MAX101 count() called on mboSet: {set_name} within a loop"
+MAX102 = "MAX102 Literal: {literal} used instead of MboConstant"
 
 
 class MboVisitor(ast.NodeVisitor):
@@ -19,8 +20,31 @@ class MboVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node):
+        self.check_MAX100(node)
+        self.generic_visit(node)
+
+    def visit_For(self, node):
+        self.check_MAX101(node)
+        self.generic_visit(node)
+
+    def visit_While(self, node):
+        self.check_MAX101(node)
+        self.generic_visit(node)
+
+    def check_MAX101(self, body):
+        for node in ast.walk(body):
+            if isinstance(node, ast.Call):
+                if self.is_mbo_count_call(node):  # self.visit_Call(node):
+                    self.problems.append(
+                        (
+                            node.lineno,
+                            node.col_offset,
+                            MAX101.format(set_name=node.func.value.id),
+                        )
+                    )
+
+    def check_MAX100(self, node):
         if not hasattr(node.func, "value"):
-            self.generic_visit(node)
             return
         if self.is_mbo_count_call(node):
             self.mbo_count_calls[node.func.value.id] += 1
@@ -32,27 +56,6 @@ class MboVisitor(ast.NodeVisitor):
                         MAX100.format(set_name=node.func.value.id),
                     )
                 )
-        self.generic_visit(node)
-
-    def visit_For(self, node):
-        self.visit_loop_body(node)
-        self.generic_visit(node)
-
-    def visit_While(self, node):
-        self.visit_loop_body(node)
-        self.generic_visit(node)
-
-    def visit_loop_body(self, body):
-        for node in ast.walk(body):
-            if isinstance(node, ast.Call):
-                if self.is_mbo_count_call(node):  # self.visit_Call(node):
-                    self.problems.append(
-                        (
-                            node.lineno,
-                            node.col_offset,
-                            MAX101.format(set_name=node.func.value.id),
-                        )
-                    )
 
     def is_mbo_count_call(self, node):
         return (
