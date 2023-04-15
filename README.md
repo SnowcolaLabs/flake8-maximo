@@ -2,22 +2,22 @@
 A Flake8 plugin which checks a file for maximo specific linting rules:
  - MAX100 Check that mboSet.count() is not called more than once per mboSet
  - MAX101 Check that mboSet.count() is not called within loops
+ - MAX102 Check that MboConstants are used in stead of literals
 
 ## Installation
 ```bash
-git clone https://github.com/SnowcolaLabs/flake8-maximo.git /path/to/save
+pip install git+https://github.com/SnowcolaLabs/flake8-maximo.git
+```
 
-cd /path/to/save
+## Development
+```bash
+pip install -r ./requirements/dev.txt
 
-# if using a virtualenv activate first
-pip install -r ./requirments/prod.txt .
+# install the plugin in editable mode
+pip instell -e .
 ```
 
 ## Testing
-Ensure dev dependencies are installed
-```bash
-pip install -r ./requirements/dev.txt
-```
 run pytest
 ```bash
 pytest tests
