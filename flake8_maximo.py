@@ -19,7 +19,7 @@ class MboVisitor(ast.NodeVisitor):
 
     def visit_Assign(self, node):
         if isinstance(node.value, ast.Call) and not isinstance(node.value.func, ast.Name) and node.value.func.attr == "getMboSet":
-            if node.targets:
+            if node.targets and node.value.args:
                 self.mbo_sets[node.targets[0].id] = node.value.args[0]
 
         self.generic_visit(node)
