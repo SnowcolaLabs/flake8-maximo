@@ -16,8 +16,12 @@ class MboVisitor(ast.NodeVisitor):
 
     def visit_Assign(self, node):
         if isinstance(node.value, ast.Call) and not isinstance(node.value.func, ast.Name) and node.value.func.attr == "getMboSet":
+            print(node.lineno)
             self.mbo_sets[node.targets[0].id] = node.value.args[0]
         self.generic_visit(node)
+
+    def visit_FunctionDef(self, node):
+        print(node)
 
     def visit_Call(self, node):
         self.check_MAX100(node)
@@ -77,8 +81,6 @@ class MboVisitor(ast.NodeVisitor):
             and node.func.value.id in self.mbo_sets.keys()
         )
         except AttributeError as e:
-            print(e)
-            print(node)
             return False
         return res
 
@@ -93,5 +95,7 @@ class Plugin:
         mbo_visitor = MboVisitor()
 
         mbo_visitor.visit(self._tree)
+        print(mbo_visitor.mbo_count_calls)
+        print(mbo_visitor.mbo_sets)
         for line, col, msg in mbo_visitor.problems:
             yield line, col, msg, type(self)
