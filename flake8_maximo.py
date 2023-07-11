@@ -9,22 +9,20 @@ MAX102 = "MAX102 Literal: {literal} used instead of MboConstant"
 
 
 class MboVisitor(ast.NodeVisitor):
-    def __init__(self):
+    def __init__(self, tree):
+        self.tree = tree
         self.mbo_sets = {}
         self.mbo_count_calls = defaultdict(int)
+        self.MAX100_counts = {}
         self.problems = []
+
 
     def visit_Assign(self, node):
         if isinstance(node.value, ast.Call) and not isinstance(node.value.func, ast.Name) and node.value.func.attr == "getMboSet":
-            print(node.lineno)
             self.mbo_sets[node.targets[0].id] = node.value.args[0]
         self.generic_visit(node)
 
-    def visit_FunctionDef(self, node):
-        print(node)
-
     def visit_Call(self, node):
-        self.check_MAX100(node)
         self.check_MAX102(node)
         self.generic_visit(node)
 
@@ -37,23 +35,43 @@ class MboVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def check_MAX100(self, node):
-        if not hasattr(node.func, "value"):
-            return
-        if self.is_mbo_count_call(node):
-            self.mbo_count_calls[node.func.value.id] += 1
-            if self.mbo_count_calls[node.func.value.id] > 1:
-                self.problems.append(
-                    (
-                        node.lineno,
-                        node.col_offset,
-                        MAX100.format(set_name=node.func.value.id),
-                    )
-                )
+        self.check_counts(self.tree)
+        self.record_count_errors()
+
+    def check_counts(self, node):
+        if isinstance(node, ast.FunctionDef):
+            self.record_count_errors()
+            self.MAX100_counts = {}  # Reset object counts for each function
+
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Attribute) and node.func.attr == 'count':
+                obj_name = self.get_object_name(node.func.value)
+                if obj_name and (obj_name in self.mbo_sets.keys()):
+                    self.MAX100_counts[obj_name] = self.MAX100_counts.get(obj_name, [])
+                    obj = self.MAX100_counts.get(obj_name, [])
+                    obj.append((node.lineno, node.col_offset))
+
+        # Traverse recursively
+        for child_node in ast.iter_child_nodes(node):
+            self.check_counts(child_node)
+
+    def record_count_errors(self):
+        if self.MAX100_counts:
+            for obj_name, lines in self.MAX100_counts.items():
+                if lines and (len(lines) > 1):
+                    for line in lines: #returns all lines contributing to the problems
+                        self.problems.append((line[0],line[1],MAX100.format(set_name=obj_name)))
+
+    def get_object_name(self, node):
+        if isinstance(node, ast.Name):
+            return node.id
+        elif isinstance(node, ast.Attribute):
+            return self.get_object_name(node.value)
 
     def check_MAX101(self, body):
         for node in ast.walk(body):
             if isinstance(node, ast.Call):
-                if self.is_mbo_count_call(node):  # self.visit_Call(node):
+                if self.is_mbo_count_call(node):
                     self.problems.append(
                         (
                             node.lineno,
@@ -84,6 +102,11 @@ class MboVisitor(ast.NodeVisitor):
             return False
         return res
 
+    def run(self):
+        self.visit(self.tree)
+        self.check_MAX100(self.tree)
+ 
+
 class Plugin:
     name = __name__
     version = importlib_metadata.version(__name__)
@@ -91,11 +114,12 @@ class Plugin:
     def __init__(self, tree):
         self._tree = tree
 
-    def run(self):
-        mbo_visitor = MboVisitor()
 
-        mbo_visitor.visit(self._tree)
-        print(mbo_visitor.mbo_count_calls)
-        print(mbo_visitor.mbo_sets)
+
+    def run(self):
+        mbo_visitor = MboVisitor(self._tree)
+        mbo_visitor.run()
+
         for line, col, msg in mbo_visitor.problems:
             yield line, col, msg, type(self)
+
