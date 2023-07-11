@@ -70,12 +70,17 @@ class MboVisitor(ast.NodeVisitor):
                         self.problems.append((node.lineno, node.col_offset, MAX102.format(literal="{}L".format(arg.n))))
 
     def is_mbo_count_call(self, node):
-        return (
+        try:
+            res = (
             hasattr(node.func, "value")
             and node.func.attr == "count"
             and node.func.value.id in self.mbo_sets.keys()
         )
-
+        except AttributeError as e:
+            print(e)
+            print(node)
+            return False
+        return res
 
 class Plugin:
     name = __name__
